@@ -1,168 +1,109 @@
 package sc.cvut.fel.dsv.sp.topology;
 
-import lombok.Data;
-import lombok.extern.slf4j.Slf4j;
-import sc.cvut.fel.dsv.sp.util.ConsoleHandler;
 
-import java.io.IOException;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
+import sc.cvut.fel.dsv.sp.topology.model.Address;
+import sc.cvut.fel.dsv.sp.topology.server.Connection;
+import sc.cvut.fel.dsv.sp.topology.server.NodeServer;
+import sc.cvut.fel.dsv.sp.topology.utils.ConsoleHandler;
+
+import java.util.Objects;
 import java.util.UUID;
 
 @Slf4j
-@Data
-public class Node implements Runnable, Communication.MessageListener {
+@Getter
+@Setter
+public class Node implements Runnable {
 
-    Integer id; // unique
-    Integer winp; // unique
+    Integer id;    // unique identification
+    Integer winP;  // unique win_id in this ring
+    Integer acnP;
 
-    Address address;
+    Address myAddress;
 
-    Server server; // winp
-    Client client;
+    private StateNode stateNode;
 
-    StateNode stateNode;
+    private ConsoleHandler consoleHandler;
+    private NodeServer server;
 
-    Server neighbour1;
-    Server neighbour2;
+    private Connection neighbourLeft;
+    private Connection neighbourRight;
 
-    ConsoleHandler myConsoleHandler;
+    private boolean running = true;
 
-    Communication communication1;
-    Communication communication2;
 
-    Integer acn_p;
-    Integer q2;
-
-    public Node(Address address) {
-        this.address = address;
-
-        this.stateNode = StateNode.ACTIVE;
-    }
 
     public void init() {
-        id = generateId();
-        myConsoleHandler = new ConsoleHandler(this);
+        stateNode = StateNode.ACTIVE;                       // initiator
+        consoleHandler = new ConsoleHandler(this);
     }
 
-
-    //todo change it
-    private int generateId() {
+    private Integer generateId() {
         UUID uuid = UUID.randomUUID();
-        String str = address.host + ":" + address.port + uuid;
+        String host = server.getAddress().getHost();
+        int port = server.getAddress().getPort();
+
+        String str = host + ":" + port + uuid;
 
         return str.hashCode();
     }
 
     public void run() {
-        client = new Client(address);
+        new Thread(consoleHandler).run();
 
-
-        if (communication1 == null && communication2 == null) {
-            winp = id;
-            // jsem server
-            server = new Server(address);
-        } else if (communication1 != null) {
-            // client - server communication
-            communication1.sendMessage(id.toString());
-            if (acn_p == null)
-                return;
-
-            if (acn_p < id) {
-                winp = acn_p;
-                stateNode = StateNode.PASSIVE;
-            }
-
-        } else if (stateNode.equals(StateNode.ACTIVE)) {  // Peterson/DKR algorithm
-
-            // send my_id addressNeighbour1, get response with min_id
-            communication1.sendMessage(id.toString());
-
-            if (acn_p == null)
-                return;
-
-            if (acn_p.equals(id)) {
-                // I'm winner
-                winp = id;
-            } else {
-
-                // send acn_p addressNeighbour2, get response with min_id
-                communication2.sendMessage(acn_p.toString());
-
-                if (q2 == null)
-                    return;
-
-                if (acn_p < id && acn_p < q2) {
-                    id = acn_p;
-                } else {
-                    stateNode = StateNode.PASSIVE;
-                }
-            }
-        } else {
-            // todo
-            // prijima zpravy od sousedu
-            // calculate min = min(my_id, request_min_id)
-            // odesila min
+        while (running) {
+//            if (Objects.equals(id, winP))
+//                stateNode = StateNode.LEADER;
+//            else
+//                stateNode = StateNode.LOST;
         }
-
-        if (id.equals(winp))
-            stateNode = StateNode.LEADER;
-
-        if (winp == null)
-            stateNode = StateNode.LOST;
-
-        new Thread(myConsoleHandler).run();
     }
 
-    public void connect(String host, Integer port) {
-        Server server = new Server(new Address(host, port));
-        Communication communication = new Communication(client, server);
+    public void startServer(String host, int port) {
+        myAddress = new Address(host, port);
+        server = new NodeServer(myAddress);
+        server.run();
 
-        if (neighbour1 == null) {
-            neighbour1 = server;
-            communication1 = communication;
-            communication1.initConnection();
-        } else if(neighbour2 == null) {
-            neighbour2 = server;
-            communication2 = communication;
-            communication2.initConnection();
+        // begin if P is initiator then statP := active else stateP := passive;
+        if (isStateActive()) {
+            id = generateId();
         } else {
-            log.warn("My node already has 2 neighbours");
+            stateNode = StateNode.PASSIVE;
         }
-
     }
 
+    public void stopServer() {
+        // disable server
+        server.stop();
+
+        // close connection with neighbours
+        if (neighbourRight != null && neighbourRight.isActive()) {
+            neighbourRight.close();
+            neighbourRight = null;
+        }
+
+        if (neighbourLeft != null && neighbourLeft.isActive()) {
+            neighbourLeft.close();
+            neighbourLeft = null;
+        }
+    }
+
+    private boolean isStateActive() {
+        return stateNode.equals(StateNode.ACTIVE);
+    }
 
     @Override
     public String toString() {
-        return "\n Node{" + '\n' +
+        return "Node {" + '\n' +
                 "   id = " + id + '\n' +
-                "   address = " + address + '\n' +
+                "   winP = " + winP + '\n' +
+                "   state = " + stateNode + '\n' +
                 "   server = " + server + '\n' +
-                "   client = " + client + '\n' +
-                "   stateNode = " + stateNode + '\n' +
-                "   neighbour1 = " + neighbour1 + '\n' +
-                "   neighbour2 = " + neighbour2 + '\n' +
+                "   neighbourLeft = " + neighbourLeft + '\n' +
+                "   neighbourRight = " + neighbourRight + '\n' +
                 '}';
-    }
-
-    @Override
-    public void onMessageReceived(String message, Server serverMessage) throws IOException {
-        int idMessage = Integer.parseInt(message);
-
-        int minId = Math.min(idMessage, id);
-        if(idMessage == minId) {
-            winp = idMessage;
-            server = serverMessage;
-
-            if (stateNode.equals(StateNode.LEADER) || stateNode.equals(StateNode.ACTIVE))
-                stateNode = StateNode.PASSIVE;
-        } else {
-            winp = id;
-            stateNode = StateNode.LEADER;
-        }
-
-        String messageForServer = Integer.toString(winp);
-        server.onMessage(messageForServer);
-
     }
 
 }
