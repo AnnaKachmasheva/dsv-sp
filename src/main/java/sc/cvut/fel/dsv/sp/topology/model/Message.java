@@ -31,10 +31,16 @@ public class Message {
         this.body = address == null ? "" : address.getHost() + DELIMITER_IN_BODY + address.getPort();
     }
 
+    public Message(String title, Long id) {
+        this.title = title;
+        this.body = String.valueOf(id);
+    }
+
     public Message(String title, int id) {
         this.title = title;
         this.body = String.valueOf(id);
     }
+
 
     public String getMessage() {
         return title + DELIMITER_TITLE_BODY + body;

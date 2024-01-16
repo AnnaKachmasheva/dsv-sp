@@ -1,7 +1,7 @@
 package sc.cvut.fel.dsv.sp.topology;
 
 public enum StateNode {
-    ACTIVE,
+    ACTIVE, // init state
     PASSIVE,
     LEADER,
     LOST

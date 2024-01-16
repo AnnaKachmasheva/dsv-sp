@@ -18,7 +18,6 @@ public class NodeServer {
     private Address address;
     private final Server server;
     private final ServerConnector connector;
-
     private int countConnection;
 
 

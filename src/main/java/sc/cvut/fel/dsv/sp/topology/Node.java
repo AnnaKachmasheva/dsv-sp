@@ -5,60 +5,87 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import sc.cvut.fel.dsv.sp.topology.model.Address;
+import sc.cvut.fel.dsv.sp.topology.model.Message;
 import sc.cvut.fel.dsv.sp.topology.server.Connection;
 import sc.cvut.fel.dsv.sp.topology.server.NodeServer;
 import sc.cvut.fel.dsv.sp.topology.utils.ConsoleHandler;
 
-import java.util.Objects;
-import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
+import static sc.cvut.fel.dsv.sp.topology.utils.Constants.ACNP;
+import static sc.cvut.fel.dsv.sp.topology.utils.Constants.CIP;
 
 @Slf4j
 @Getter
 @Setter
 public class Node implements Runnable {
 
-    Integer id;    // unique identification
-    Integer winP;  // unique win_id in this ring
-    Integer acnP;
+    Long id;    // unique identification
+    Long winP;  // unique win_id in this ring
+    Long acnP;  // current id of neighbour
 
     Address myAddress;
 
     private StateNode stateNode;
 
     private ConsoleHandler consoleHandler;
-    private NodeServer server;
+    private NodeServer server; // my node
 
-    private Connection neighbourLeft;
-    private Connection neighbourRight;
+    private Connection neighbourLeft; // <-
+    private Connection neighbourRight; // ->
 
-    private boolean running = true;
+    private boolean running = true; // if node is running
 
 
+    private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(1);
 
     public void init() {
-        stateNode = StateNode.ACTIVE;                       // initiator
+        stateNode = StateNode.ACTIVE;                       // because initiator
         consoleHandler = new ConsoleHandler(this);
     }
 
-    private Integer generateId() {
-        UUID uuid = UUID.randomUUID();
-        String host = server.getAddress().getHost();
+    private Long generateId() {
+        String host = server.getAddress().getHost().replaceAll("\\.", "");
         int port = server.getAddress().getPort();
-
-        String str = host + ":" + port + uuid;
-
-        return str.hashCode();
+        String str = host + port;
+        return Long.parseLong(str);
     }
 
     public void run() {
-        new Thread(consoleHandler).run();
+        // regular messages each 1 sec
+        executorService.scheduleAtFixedRate(() -> {
+            if (winP == null) {
 
-        while (running) {
-//            if (Objects.equals(id, winP))
-//                stateNode = StateNode.LEADER;
-//            else
-//                stateNode = StateNode.LOST;
-        }
+                if (stateNode == StateNode.ACTIVE) {
+
+                    if (neighbourRight != null && neighbourRight.getSession() != null) {
+                        // if I have active state
+                        // send my id
+                        Message messageCIP = new Message(CIP, id);
+                        neighbourRight.sendMessage(messageCIP.getMessage());
+
+                        // send my acnp
+                        if (acnP != null) {
+                            Message messageACNP = new Message(ACNP, acnP);
+                            neighbourRight.sendMessage(messageACNP.getMessage());
+                        }
+
+                    }
+
+                    if (neighbourLeft != null && neighbourLeft.getSession() != null) {
+                        // todo ???
+                    }
+                } else {
+                    // todo ???
+                }
+            }
+
+        }, 0, 1, TimeUnit.SECONDS);
+
+
+        new Thread(consoleHandler).run();
     }
 
     public void startServer(String host, int port) {
@@ -94,15 +121,20 @@ public class Node implements Runnable {
         return stateNode.equals(StateNode.ACTIVE);
     }
 
+
     @Override
     public String toString() {
-        return "Node {" + '\n' +
-                "   id = " + id + '\n' +
+        return "Node{" + '\n' +
+                "   id=" + id + '\n' +
                 "   winP = " + winP + '\n' +
-                "   state = " + stateNode + '\n' +
+                "   acnP = " + acnP + '\n' +
+                "   myAddress = " + myAddress + '\n' +
+                "   stateNode = " + stateNode + '\n' +
+//                " consoleHandler = " + consoleHandler + '\n' +
                 "   server = " + server + '\n' +
                 "   neighbourLeft = " + neighbourLeft + '\n' +
                 "   neighbourRight = " + neighbourRight + '\n' +
+                "   running = " + running + '\n' +
                 '}';
     }
 

@@ -3,6 +3,7 @@ package sc.cvut.fel.dsv.sp.topology.server;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import sc.cvut.fel.dsv.sp.topology.Node;
 import sc.cvut.fel.dsv.sp.topology.model.Address;
 import sc.cvut.fel.dsv.sp.topology.server.endpoint.NodeClientEndpoint;
 
@@ -18,14 +19,17 @@ import java.net.URI;
 @Setter
 public class Connection {
 
+    private Node node;
     private Address address;
     private Session session;
 
-    public Connection(Address address) {
+    public Connection(Node node, Address address) {
+        this.node = node;
         this.address = address;
     }
 
-    public Connection(Address address, Session session) {
+    public Connection(Node node, Address address, Session session) {
+        this.node = node;
         this.address = address;
         this.session = session;
     }
@@ -40,7 +44,7 @@ public class Connection {
             NodeClientEndpoint nodeClientEndpoint = new NodeClientEndpoint();
 
             // Attempt Connect
-            container.setDefaultMaxSessionIdleTimeout(30000);
+            container.setDefaultMaxSessionIdleTimeout(Integer.MAX_VALUE);
             session = container.connectToServer(nodeClientEndpoint, uri);
             session.setMaxIdleTimeout(30000);
 
@@ -48,7 +52,9 @@ public class Connection {
 
         } catch (DeploymentException | IOException e) {
             log.error("Failed start connection to host: {}  and port: {}.\n Message: {}",
-                    address.getHost(), address.getPort(), e.getMessage());
+                    address.getHost(), address, e.getMessage());
+
+            this.session = null;
         }
     }
 

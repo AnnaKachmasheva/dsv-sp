@@ -3,6 +3,7 @@ package sc.cvut.fel.dsv.sp.topology.utils;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import sc.cvut.fel.dsv.sp.topology.Node;
+import sc.cvut.fel.dsv.sp.topology.StateNode;
 import sc.cvut.fel.dsv.sp.topology.model.Address;
 import sc.cvut.fel.dsv.sp.topology.model.Message;
 import sc.cvut.fel.dsv.sp.topology.server.Connection;
@@ -30,7 +31,6 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
 
     private static final String PORT_REGEX = "^([0-9][0-9][0-9][0-9])$";
     private static final Pattern PORT_PATTERN = Pattern.compile(PORT_REGEX);
-
 
     private Node node;
     private BufferedReader reader;
@@ -76,7 +76,6 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
 
         log.info("CLOSE ConsoleHandler");
     }
-
 
     private void parse_commandline(String commandline) throws InterruptedException {
 
@@ -130,7 +129,9 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
             case "stop server" -> node.stopServer();
             case "connect" -> {
                 // check if node has 2 active connection
-                if (node.getNeighbourLeft() != null && node.getNeighbourRight() != null) {
+                if (node.getNeighbourLeft() != null && node.getNeighbourRight() != null &&
+                        !Objects.equals(node.getNeighbourLeft().getAddress().getHost(),
+                                node.getNeighbourRight().getAddress().getHost())) {
                     log.error("Node already has 2 connection. Max count connection 2.");
                 } else
                     isConnect = true;
@@ -155,8 +156,7 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
         builder.append("info        - info about my node").append('\n')
                 .append("connect     - connect with other node").append('\n')
                 .append("start server").append('\n')
-                .append("stop server ").append('\n')
-                .append("connect     - connect with other node");
+                .append("stop server ").append('\n');
 
         return builder.toString();
     }
@@ -164,29 +164,23 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
     public void connect(String host, int port) {
 
         Address address = new Address(host, port);
-        Connection connection = new Connection(address);
+        Connection connection = new Connection(node, address);
         connection.run();
-
-        if (node.getNeighbourLeft() == null) {
-            node.setNeighbourLeft(connection);
-        }
 
         if (node.getNeighbourRight() == null) {
             node.setNeighbourRight(connection);
         }
 
-        // get left neighbour
+        node.setNeighbourLeft(connection);
+
+        // make ring topology
+        //  get left neighbour
         Message messageGetRightNeighbour = new Message(GET_RIGHT_NEIGHBOUR, "");
         connection.sendMessage(messageGetRightNeighbour.getMessage());
 
         // connect with right neighbour for ring topology
         Message messageMyAddress = new Message(NEW_RIGHT_NEIGHBOUR, node.getMyAddress());
         connection.sendMessage(messageMyAddress.getMessage());
-
-        // begin send <one, cip>
-        Message messageWithCIP = new Message(CIP, node.getId());
-        connection.sendMessage(messageWithCIP.getMessage());
-
     }
 
     @Override
@@ -197,18 +191,14 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
         String title = message.getTitle();
         if (title == null)
             return;
-        String body = message.getBody();
-
 
         switch (title) {
 
             case RIGHT_NEIGHBOUR -> {
-                if (message.getBody() == null) {
-                    node.setNeighbourRight(node.getNeighbourLeft());
-                } else {
-                    Address address = parseAddress(message.getBody());
+                Address address = parseAddress(message.getBody());
+                if (address != null) {
 
-                    Connection newConnection = new Connection(address);
+                    Connection newConnection = new Connection(node, address);
                     newConnection.run();
 
                     node.setNeighbourRight(newConnection);
@@ -223,47 +213,40 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
                     return;
 
                 Address newAddress = parseAddress(message.getBody());
-                node.setNeighbourLeft(new Connection(newAddress, session));
+                node.setNeighbourLeft(new Connection(node, newAddress, session));
 
                 // creat connection with new neighbour
-                if ((node.getNeighbourLeft().getAddress().getPort() != node.getNeighbourRight().getAddress().getPort()) &&
-                        !(node.getNeighbourLeft().getAddress().getHost().equals(node.getNeighbourRight().getAddress().getHost()))) {
+                if ((node.getNeighbourLeft().getNode().getMyAddress().getPort() != node.getNeighbourRight().getNode().getMyAddress().getPort()) &&
+                        !(node.getNeighbourLeft().getNode().getMyAddress().getHost().equals(node.getNeighbourRight().getNode().getMyAddress().getHost()))) {
                     node.getNeighbourLeft().run();
                     Message messageWithNewRightNeighbour = new Message(NEW_RIGHT_NEIGHBOUR, node.getMyAddress());
                     node.getNeighbourLeft().sendMessage(messageWithNewRightNeighbour.getMessage());
                 }
             }
 
-            case Q -> {
-                // receive <one, q> ; acnp:= q ;
-                int one = Integer.parseInt(body);
 
-                node.setAcnP(one);
-                //if acnp = cip
-                if (Objects.equals(node.getAcnP(), node.getId())) {
-                    // begin send <smal, acnp>
-                    // todo
-
-                    //winp := acnp
-                    node.setWinP(node.getAcnP());
-
-                } else {
-                    //begin send<two, acnp>
-                    if (node.getNeighbourRight() != null) {
-                        Message messageACNPTwo = new Message(ACNP, node.getAcnP());
-                        node.getNeighbourRight().sendMessage(messageACNPTwo.getMessage());
-
-                    }
-                }
+            case CIP -> {
+                cipMessageHandler(message);
             }
-
+            case ACNP -> {
+                acnpMessageHandler(message, session);
+            }
             case SMALL -> {
-                // receive <small, q> ; end
+                // todo ?
+                smallMessageHandler(message, session);
+            }
+            case WIN -> {
+                long win = Integer.parseInt(message.getBody());
+                node.setWinP(win);
             }
         }
+
     }
 
     private Address parseAddress(String messageBody) {
+        if (messageBody.isEmpty())
+            return null;
+
         String[] parts = messageBody.split("_");
         String host = parts[0];
         int port = Integer.parseInt(parts[1]);
@@ -283,46 +266,103 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
             case GET_RIGHT_NEIGHBOUR -> {
                 Address address = node.getNeighbourRight() == null ? null : node.getNeighbourRight().getAddress();
                 Message messageWithRightNeighbour = new Message(RIGHT_NEIGHBOUR, address);
-                try {
-                    session.getBasicRemote().sendText(messageWithRightNeighbour.getMessage());
-                } catch (IOException e) {
-                    log.error("failed send send message: {} to server in session: {}.\n Message: {}",
-                            messageWithRightNeighbour, session.getId(), e.getMessage());
-                }
+                sendMessage(session, messageWithRightNeighbour);
             }
 
             case NEW_RIGHT_NEIGHBOUR -> {
-
                 Address newAddress = parseAddress(message.getBody());
 
                 if (!newAddress.equals(node.getMyAddress())) {
-                    Connection newConnection = new Connection(newAddress, session);
+                    Connection newConnection = new Connection(node, newAddress, session);
 
-                    if (node.getNeighbourRight() != null)
-                        node.getNeighbourRight().close();
+                    if (node.getNeighbourLeft() == null) {
+                        node.setNeighbourLeft(newConnection);
+                    }
 
                     node.setNeighbourRight(newConnection);
-
-                    if (node.getNeighbourLeft() == null)
-                        node.setNeighbourLeft(newConnection);
                 }
             }
             case NEW_LEFT_NEIGHBOUR -> {
                 Address newAddress = parseAddress(message.getBody());
-                Connection newConnection = new Connection(newAddress, session);
+                Connection newConnection = new Connection(node, newAddress, session);
                 node.setNeighbourLeft(newConnection);
 
                 if (node.getNeighbourRight() == null)
                     node.setNeighbourRight(newConnection);
             }
+            case CIP -> {
+                cipMessageHandler(message);
+            }
+            case ACNP -> {
+                acnpMessageHandler(message, session);
+            }
+            case SMALL -> {
+                smallMessageHandler(message, session);
+            }
+            case WIN -> {
+                long win = Integer.parseInt(message.getBody());
+                node.setWinP(win);
+            }
 
         }
     }
 
+    private void cipMessageHandler(Message message) {
+        if (node.getStateNode() == StateNode.PASSIVE) {
+            node.getNeighbourRight().sendMessage(message.getMessage()); // I'm passive pass data to right neighbour
+        } else {
+            long cip = Integer.parseInt(message.getBody());
+            node.setAcnP(cip);
+        }
+
+    }
+
+    private void acnpMessageHandler(Message message, Session session) {
+        int acnp = Integer.parseInt(message.getBody());
+
+        // only 2 active nodes in topology
+        if (acnp == node.getId()) {
+            long small = Math.min(node.getAcnP(), node.getId());
+            node.setWinP(small);
+            if (small == node.getId()) {
+                node.setStateNode(StateNode.LEADER);
+            }
+
+            // send small neighbour
+            Message messageWithSmall = new Message(WIN, small);
+            sendMessage(session, messageWithSmall);
+        } else if (acnp < node.getId()) {
+            node.setStateNode(StateNode.PASSIVE);
+        } else {
+            // todo
+        }
+
+
+    }
+
+    private void smallMessageHandler(Message message, Session session) {
+        long small = Integer.parseInt(message.getBody());
+
+        if (small == node.getId()) {
+            node.setWinP(small);
+            node.setStateNode(StateNode.LEADER);
+        }
+    }
+
+    private void sendMessage(Session session, Message message) {
+        try {
+            session.getBasicRemote().sendText(message.getMessage());
+        } catch (IOException e) {
+            log.error("failed send send message: {} in session: {}.\n Message: {}",
+                    message, session.getId(), e.getMessage());
+        }
+    }
+
+
     @Override
     public void onClose(Session session, CloseReason reason) {
         log.info(String.format("Session %s closed because of %s", session.getId(), reason));
-    }
 
+    }
 
 }

@@ -8,8 +8,9 @@ public class Constants {
             GET_RIGHT_NEIGHBOUR = "Get right neighbour",
             RIGHT_NEIGHBOUR = "My right neighbour",
             CIP = "CIP",
-            Q = "Q",
+//            Q = "Q",
             ACNP = "ACNP",
-            SMALL = "SAMLL";
+            SMALL = "SMALL",
+            WIN = "WIN";
 
 }

@@ -4,16 +4,20 @@ import lombok.extern.slf4j.Slf4j;
 import sc.cvut.fel.dsv.sp.topology.server.listener.WebSocketEventManager;
 
 import javax.websocket.*;
+import java.io.IOException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @ClientEndpoint
 public class NodeClientEndpoint {
 
-//    private static ClientEndpointListener clientEndpointListener;
+    private Session session;
 
     @OnOpen
     public void onOpen(Session session) {
-        // Get session and WebSocket connection
+        this.session = session;
         log.info("WebSocket Connected: {}", session.getId());
     }
 
@@ -31,4 +35,6 @@ public class NodeClientEndpoint {
     public void onError(Session session, Throwable throwable) {
         // Do error handling here
     }
+
+
 }
