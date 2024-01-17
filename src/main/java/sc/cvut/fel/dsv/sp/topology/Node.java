@@ -87,19 +87,6 @@ public class Node implements Runnable {
             if (startRepair) {
                 this.startAlgorithm = false;
             }
-
-//            if (startAlgorithm && stateNode == StateNode.ACTIVE) {
-//                // if I have active state, send my id
-//                Message messageCIP = new Message(CIP, id);
-//                neighbourRight.sendMessage(messageCIP.getMessage());
-//
-//                // send my acnp
-//                if (acnP != null) {
-//                    Message messageACNP = new Message(ACNP, acnP);
-//                    neighbourRight.sendMessage(messageACNP.getMessage());
-//                }
-//            }
-
         }, 0, 1, TimeUnit.SECONDS);
 
         new Thread(consoleHandler).run();
@@ -129,7 +116,6 @@ public class Node implements Runnable {
         this.winP = null;
         this.acnP = null;
         this.startRepair =  true;
-        this.stateNode = StateNode.ACTIVE;
     }
 
     private boolean isStateActive() {

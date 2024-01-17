@@ -18,6 +18,7 @@ import java.io.InputStreamReader;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static sc.cvut.fel.dsv.sp.topology.StateNode.LEADER;
 import static sc.cvut.fel.dsv.sp.topology.utils.Constants.*;
 
 @Slf4j
@@ -185,14 +186,22 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
         Message messageGetRightNeighbour = new Message(GET_RIGHT_NEIGHBOUR, "");
         connection.sendMessage(messageGetRightNeighbour.getMessage());
 
+        log.info("send message {}", messageGetRightNeighbour.getMessage());
+
         // connect with right neighbour for ring topology
         Message messageMyAddress = new Message(NEW_RIGHT_NEIGHBOUR, node.getMyAddress());
         connection.sendMessage(messageMyAddress.getMessage());
 
+        log.info("send message {}", messageMyAddress.getMessage());
+
         // send repair message
         Message message = new Message(REPAIR, node.getMyAddress());
         node.getNeighbourLeft().sendMessage(message.getMessage());
+
+        log.info("send message {}", message.getMessage());
         node.repairInit();
+
+        log.info("Start 0 round.");
     }
 
     @Override
@@ -219,6 +228,8 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
 
                     Message messageNewRightN = new Message(NEW_LEFT_NEIGHBOUR, node.getMyAddress());
                     newConnection.sendMessage(messageNewRightN.getMessage());
+
+                    log.info("send message {}", messageNewRightN.getMessage());
                 }
             }
 
@@ -235,6 +246,8 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
             case ACNP -> acnpMessageHandler(message);
             case WIN -> winMessageHandler(message);
             case NEW_ROUND_INIT -> newRoundHandler(message);
+            case START_ROUND -> startNewRaundHandler(message);
+            case WINNER -> winnerHandler(message);
         }
     }
 
@@ -254,6 +267,8 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
                 Address address = node.getNeighbourRight() == null ? null : node.getNeighbourRight().getAddress();
                 Message messageWithNeighbour = new Message(MY_RIGHT_NEIGHBOUR, address);
                 sendMessage(session, messageWithNeighbour);
+
+                log.info("send message {}", messageWithNeighbour.getMessage());
             }
 
             case NEW_RIGHT_NEIGHBOUR -> {
@@ -282,6 +297,8 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
             case ACNP -> acnpMessageHandler(message);
             case WIN -> winMessageHandler(message);
             case NEW_ROUND_INIT -> newRoundHandler(message);
+            case START_ROUND -> startNewRaundHandler(message);
+            case WINNER -> winnerHandler(message);
         }
     }
 
@@ -295,24 +312,34 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
 
             Message messageRN = new Message(NEW_RIGHT_NEIGHBOUR, node.getMyAddress());
             connection.sendMessage(messageRN.getMessage());
-            node.repairInit();
+
+            log.info("send message {}", messageRN.getMessage());
         }
+
         if (!address.getHost().equals(node.getMyAddress().getHost()) &&
                 !node.isStartRepair()) {
             Message messageRepair = new Message(REPAIR, address);
             node.getNeighbourLeft().sendMessage(messageRepair.getMessage());
+
+            log.info("send message {}", messageRepair.getMessage());
             node.repairInit();
+            node.setStateNode(StateNode.ACTIVE);
         } else {
             // start sending CIP after topology restoration
             if (node.isStartRepair()) {
                 Message startAlgMessage = new Message(CIP, node.getId(), node.getId());
                 node.getNeighbourRight().sendMessage(startAlgMessage.getMessage());
+
+                log.info("send message {}", startAlgMessage.getMessage());
+                node.repairInit();
+                node.setStateNode(StateNode.ACTIVE);
             }
 
             node.setStartRepair(false);
             node.setStartAlgorithm(true);
         }
 
+        System.out.printf("after repair");
         System.out.println(node);
     }
 
@@ -339,22 +366,6 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
         long startId = nums[0];
         long cipM = nums[1];
 
-        // only 2 nodes
-        if (node.getNeighbourRight().getAddress().equals(node.getNeighbourLeft().getAddress())) {
-            long max = Math.max(node.getId(), cipM);
-            node.setWinP(max);
-
-            if (max == node.getId()) {
-                node.setStateNode(StateNode.LEADER);
-            } else {
-                node.setStateNode(StateNode.PASSIVE);
-            }
-
-            Message messagewin = new Message(WIN, max);
-            node.getNeighbourRight().sendMessage(messagewin.getMessage());
-            return;
-        }
-
         // if not leader in topology
         if (node.getWinP() != null)
             return;
@@ -366,16 +377,17 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
             node.getNeighbourRight().sendMessage(message.getMessage());
         } else {
             // winner?
-            long myId = node.getId();
-            if (cipM == myId) {
-                // send a message to the right one that I won
+//            if (cipM == node.getCiP() || cipM == node.getId()) {
+//                // send a message to the right one that I won
 //                Message messagewin = new Message(WIN, node.getId());
 //                node.getNeighbourRight().sendMessage(messagewin.getMessage());
 //
 //                log.info("passive. send message {}", messagewin.getMessage());
-            }
+//                return;
+//            }
+
             // pass data next
-            if (startId != myId) {
+            if (startId != node.getId()) {
                 Message messagecip = new Message(CIP, startId, node.getCiP());
                 node.getNeighbourRight().sendMessage(messagecip.getMessage());
 
@@ -414,9 +426,19 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
 
             log.info("State is passive. Send message {} to next.", message.getMessage());
         } else {
-
-            // set state
             long myAcnp = node.getAcnP();
+
+            // if 2 nodes
+            if (node.getCiP() == acnpM && node.getAcnP() == acnpM) {
+
+                node.setStateNode(LEADER);
+                Message winnerMessage = new Message(WINNER, node.getId());
+                node.getNeighbourRight().sendMessage(winnerMessage.getMessage());
+                node.setStartAlgorithm(false);
+
+                return;
+            }
+
             if (myAcnp > acnpM) {
                 node.setStateNode(StateNode.PASSIVE);
             }
@@ -431,6 +453,7 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
 
                 Message messageNewRound = new Message(NEW_ROUND_INIT, node.getId());
                 node.getNeighbourRight().sendMessage(messageNewRound.getMessage());
+                log.info("send message {}", messageNewRound.getMessage());
             }
         }
 
@@ -457,49 +480,97 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
         if (node.getWinP() != null)
             return;
 
-        long winId = Long.parseLong(message.getBody());
-        long id = node.getId();
+        long wincip = Long.parseLong(message.getBody());
+        long cip = node.getCiP();
 
-        if (id == winId) {
-            node.setStateNode(StateNode.LEADER);
+        if (wincip == cip) {
+
+            long winId = node.getId();
+
+
+            if (node.getAcnP() < cip) {
+                node.setStateNode(LEADER);
+                node.setWinP(winId);
+
+                // notify
+                Message winnerMessage = new Message(WINNER, winId);
+                node.getNeighbourRight().sendMessage(winnerMessage.getMessage());
+                node.setStartAlgorithm(false);
+
+                log.info("send message {}", winnerMessage.getMessage());
+            } else {
+                node.setStateNode(StateNode.PASSIVE);
+            }
         } else {
             node.setStateNode(StateNode.PASSIVE);
-            // pass info about winner next
+            // pass info next
 
-            Message winMessage = new Message(WIN, winId);
-            node.getNeighbourLeft().sendMessage(winMessage.getMessage());
+            Message winMessage = new Message(WIN, wincip);
+            node.getNeighbourRight().sendMessage(winMessage.getMessage());
 
             log.info("send message {}", winMessage.getMessage());
         }
-        node.setWinP(winId);
 
         System.out.println(node);
+    }
+
+    private void winnerHandler(Message message) {
+        long winnerId = Long.parseLong(message.getBody());
+        long id = node.getId();
+        node.setWinP(winnerId);
+
+        if (id != winnerId) {
+            Message winnerMessage = new Message(WINNER, winnerId);
+            node.getNeighbourRight().sendMessage(winnerMessage.getMessage());
+
+            log.info("send message {}", winnerMessage.getMessage());
+        }
     }
 
     private void newRoundHandler(Message message) {
         long startId = Long.parseLong(message.getBody());
         long myId = node.getId();
 
-        log.info("Init new rond settings");
+        log.info("Init new rond settings. Old acnp = {}", node.getAcnP());
         node.setCiP(node.getAcnP());
         node.setAcnP(null);
 
         if (startId != myId) {
             node.getNeighbourRight().sendMessage(message.getMessage());
+
+            log.info("send message {}", message.getMessage());
         } else {
             log.info("Cancel init new round. Start new round.");
 
-//            // start new round
-//            Message startRoundMessage;
-//            if (node.getStateNode() == StateNode.ACTIVE) {
-//                startRoundMessage = new Message(CIP, node.getId(), node.getCiP());
-//            } else {
-//                startRoundMessage = new Message(START_ROUND, node.getId());
-//            }
-//            node.getNeighbourRight().sendMessage(startRoundMessage.getMessage());
+            // start new round
+            Message startRoundMessage;
+            if (node.getStateNode() == StateNode.ACTIVE) {
+                startRoundMessage = new Message(CIP, node.getId(), node.getCiP());
+            } else {
+                startRoundMessage = new Message(START_ROUND, node.getId());
+            }
+            node.getNeighbourRight().sendMessage(startRoundMessage.getMessage());
+            log.info("send message {}", startRoundMessage.getMessage());
         }
 
         System.out.println(node);
+    }
+
+    private void startNewRaundHandler(Message message) {
+        long startId = Long.parseLong(message.getBody());
+        long myId = node.getId();
+
+        if (startId != myId) {
+            Message startRoundMessage;
+            if (node.getStateNode() == StateNode.ACTIVE) {
+                startRoundMessage = new Message(CIP, node.getId(), node.getCiP());
+            } else {
+                startRoundMessage = new Message(START_ROUND, startId);
+            }
+            node.getNeighbourRight().sendMessage(startRoundMessage.getMessage());
+
+            log.info("send message {}", startRoundMessage.getMessage());
+        }
     }
 
     private void sendMessage(Session session, Message message) {

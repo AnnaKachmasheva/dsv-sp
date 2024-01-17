@@ -8,12 +8,12 @@ public class Constants {
             GET_RIGHT_NEIGHBOUR = "Get right neighbour",
             MY_RIGHT_NEIGHBOUR = "My right neighbour",
             REPAIR = "REPAIR",
-
             NEW_ROUND_INIT = "NEW ROUND INIT",
             START_ROUND = "START ROUND",
             CIP = "CIP",
             ACNP = "ACNP",
             WIN = "WIN",
+            WINNER = "WINNER",
             PING = "ping";
 
 }
