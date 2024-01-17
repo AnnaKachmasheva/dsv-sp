@@ -6,7 +6,7 @@ import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.websocket.javax.server.config.JavaxWebSocketServletContainerInitializer;
-import sc.cvut.fel.dsv.sp.chat.endpoint.ChatServerEndpoint;
+import sc.cvut.fel.dsv.sp.topology.server.endpoint.ChatServerEndpoint;
 import sc.cvut.fel.dsv.sp.topology.model.Address;
 import sc.cvut.fel.dsv.sp.topology.server.endpoint.NodeServerEndpoint;
 

@@ -50,5 +50,4 @@ public class Message {
         return title + DELIMITER_TITLE_BODY + body;
     }
 
-
 }

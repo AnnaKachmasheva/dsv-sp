@@ -167,7 +167,6 @@ public class Node implements Runnable {
                 "   acnP = " + acnP + '\n' +
                 "   myAddress = " + myAddress + '\n' +
                 "   stateNode = " + stateNode + '\n' +
-//                ", consoleHandler=" + consoleHandler + '\n' +
                 "   server = " + server + '\n' +
                 "   neighbourLeft = " + neighbourLeft + '\n' +
                 "   neighbourRight = " + neighbourRight + '\n' +
@@ -175,7 +174,6 @@ public class Node implements Runnable {
                 "   running = " + running + '\n' +
                 "   startRepair = " + startRepair + '\n' +
                 "   startAlgorithm = " + startAlgorithm + '\n' +
-//                "   executorService = " + executorService + '\n' +
                 '}';
     }
 }

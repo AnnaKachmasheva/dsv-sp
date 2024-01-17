@@ -139,9 +139,7 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
 
         switch (commandline) {
             case "?" -> log.info("Possible commands:\n{}", getHelpMessage());
-            case "info" -> {
-                log.info("MY NODE {}", node);
-            }
+            case "info" -> log.info("MY NODE {}", node);
             case "start server" -> isStartServerCommand = true;
             case "connect" -> {
                 // check if node has 2 active connection
@@ -205,7 +203,7 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
         node.setNeighbourLeft(connection);
 
         // make ring topology
-        //  get right neighbour
+        // get right neighbour
         Message messageGetRightNeighbour = new Message(GET_RIGHT_NEIGHBOUR, "");
         connection.sendMessage(messageGetRightNeighbour.toStringM());
 
@@ -364,7 +362,7 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
             node.setStartAlgorithm(true);
         }
 
-        System.out.printf("after repair");
+        System.out.println("after repair");
         System.out.println(node);
     }
 

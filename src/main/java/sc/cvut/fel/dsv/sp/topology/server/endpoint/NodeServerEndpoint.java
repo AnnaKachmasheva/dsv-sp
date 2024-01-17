@@ -36,7 +36,7 @@ public class NodeServerEndpoint {
 
     @OnError
     public void onError(Session session, Throwable throwable) {
-        // Do error handling here
+        // no implementation
     }
 
     private class CheckConnectionTask extends TimerTask {

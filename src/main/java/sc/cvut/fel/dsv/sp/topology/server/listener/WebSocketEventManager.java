@@ -14,10 +14,6 @@ public class WebSocketEventManager {
         listeners.add(listener);
     }
 
-//    public static void unregisterListener(WebSocketEventListener listener) {
-//        listeners.remove(listener);
-//    }
-
     public static void notifyOnMessageFromServer(String message, Session session) {
         for (WebSocketEventListener listener : listeners) {
             listener.onMessageFromServer(session, message);
@@ -35,6 +31,4 @@ public class WebSocketEventManager {
             listener.onClose(session, reason);
         }
     }
-
-
 }

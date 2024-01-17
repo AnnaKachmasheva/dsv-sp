@@ -1,4 +1,4 @@
-package sc.cvut.fel.dsv.sp.chat.endpoint;
+package sc.cvut.fel.dsv.sp.topology.server.endpoint;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -21,12 +21,12 @@ public class ChatClientEndpoint {
 
     @OnClose
     public void onClose(Session session, CloseReason closeReason) {
-        // Do close handling
+        // no implementation
     }
 
     @OnError
     public void onError(Session session, Throwable throwable) {
-        // Do error handling
+        // no implementation
     }
 
 }

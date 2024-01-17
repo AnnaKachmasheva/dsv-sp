@@ -1,4 +1,4 @@
-package sc.cvut.fel.dsv.sp.chat.endpoint;
+package sc.cvut.fel.dsv.sp.topology.server.endpoint;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -18,7 +18,6 @@ public class ChatServerEndpoint {
 
     @OnOpen
     public void onOpen(Session session) {
-        // Add session to the connected sessions set
         sessions.add(session);
 
         log.info("CHAT:WebSocket Connection opened: {}", session.getId());
@@ -36,7 +35,6 @@ public class ChatServerEndpoint {
 
     @OnClose
     public void onClose(Session session, CloseReason closeReason) {
-        // Remove the session from the connected sessions set
         sessions.remove(session);
 
         log.info("CHAT:WebSocket Connection closed: {}", session.getId());
@@ -45,17 +43,13 @@ public class ChatServerEndpoint {
     @OnError
     public void onError(Session session, Throwable throwable) {
         log.error("CHAT:WebSocket Error occurred for session {}: {}", session.getId(), throwable.getMessage());
-        // You can add more detailed error handling here
     }
-
-    // Helper method to broadcast messages to all connected clients
     private static void broadcast(String message) {
         for (Session session : sessions) {
             try {
                 session.getBasicRemote().sendText(message);
             } catch (IOException e) {
                 log.error("CHAT:Error broadcasting message to session {}: {}", session.getId(), e.getMessage());
-                // You can handle the exception more gracefully, e.g., by removing the problematic session
             }
         }
     }

@@ -3,7 +3,7 @@ package sc.cvut.fel.dsv.sp.topology.server;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import sc.cvut.fel.dsv.sp.chat.endpoint.ChatClientEndpoint;
+import sc.cvut.fel.dsv.sp.topology.server.endpoint.ChatClientEndpoint;
 import sc.cvut.fel.dsv.sp.topology.Node;
 import sc.cvut.fel.dsv.sp.topology.model.Address;
 import sc.cvut.fel.dsv.sp.topology.server.endpoint.NodeClientEndpoint;
@@ -46,8 +46,8 @@ public class Connection {
 
         try {
             log.info("Start connection. URI: {}", uri);
-            // Create client-side endpoint
 
+            // Create client-side endpoint
             if (pathURI.equals("")) {
                 NodeClientEndpoint nodeClientEndpoint = new NodeClientEndpoint();
                 // Attempt Connect
@@ -64,8 +64,7 @@ public class Connection {
             log.info("Success start connection. Session: {}", session.getId());
 
         } catch (DeploymentException | IOException e) {
-            log.error("Failed start connection to host: {} and port: {}.\n Message: {}",
-                    address.getHost(), address, e.getMessage());
+            log.error("Failed start connection to host: {} and port: {}.\n Message: {}", address.getHost(), address, e.getMessage());
 
             this.session = null;
         }
@@ -73,8 +72,6 @@ public class Connection {
 
     public void sendMessage(String message) {
         try {
-//            log.error("Connection with session id {} close", session.getId());
-            // open session if close
             if (!session.isOpen()) {
                 run();
             }
@@ -87,16 +84,6 @@ public class Connection {
                     address.getHost(), address.getPort(), message, e.getMessage());
         }
     }
-
-    public void close() {
-        try {
-            session.close();
-        } catch (NullPointerException | IOException e) {
-            log.error("Failed close connection to host: {}  and port: {}.\n Message: {}",
-                    address.getHost(), address.getPort(), e.getMessage());
-        }
-    }
-
 
     public URI getURI(String path) {
         StringBuilder builder = new StringBuilder();
@@ -118,10 +105,6 @@ public class Connection {
         }
 
         return uri;
-    }
-
-    public boolean isActive() {
-        return session != null;
     }
 
     @Override
