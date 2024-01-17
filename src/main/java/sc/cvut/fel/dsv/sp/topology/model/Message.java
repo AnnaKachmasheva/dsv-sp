@@ -24,6 +24,9 @@ public class Message {
 
         if (partMessage.length > 1)
             this.body = partMessage[1];
+        else {
+            this.body = "";
+        }
     }
 
     public Message(String title, Address address) {
@@ -36,9 +39,10 @@ public class Message {
         this.body = String.valueOf(id);
     }
 
-    public Message(String title, int id) {
+    // message type CIP, ACNP
+    public Message(String title, Long id, Long num) {
         this.title = title;
-        this.body = String.valueOf(id);
+        this.body = id + "," + num;
     }
 
 

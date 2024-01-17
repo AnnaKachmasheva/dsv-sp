@@ -60,8 +60,16 @@ public class Connection {
 
     public void sendMessage(String message) {
         try {
+//            log.error("Connection with session id {} close", session.getId());
+            // open session if close
+            if (!session.isOpen()) {
+                run();
+            }
+
             session.getBasicRemote().sendText(message);
         } catch (NullPointerException | IOException e) {
+            session = null;
+
             log.error("Failed send message to host: {}  and port: {}. Message: {}\n Error: {}",
                     address.getHost(), address.getPort(), message, e.getMessage());
         }

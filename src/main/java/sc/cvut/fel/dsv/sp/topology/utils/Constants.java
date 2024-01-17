@@ -6,11 +6,14 @@ public class Constants {
             NEW_RIGHT_NEIGHBOUR = "New right neighbour",
             NEW_LEFT_NEIGHBOUR = "New left neighbour",
             GET_RIGHT_NEIGHBOUR = "Get right neighbour",
-            RIGHT_NEIGHBOUR = "My right neighbour",
+            MY_RIGHT_NEIGHBOUR = "My right neighbour",
+            REPAIR = "REPAIR",
+
+            NEW_ROUND_INIT = "NEW ROUND INIT",
+            START_ROUND = "START ROUND",
             CIP = "CIP",
-//            Q = "Q",
             ACNP = "ACNP",
-            SMALL = "SMALL",
-            WIN = "WIN";
+            WIN = "WIN",
+            PING = "ping";
 
 }
