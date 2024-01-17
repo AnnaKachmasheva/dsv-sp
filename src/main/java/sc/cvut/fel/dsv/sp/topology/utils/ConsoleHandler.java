@@ -40,9 +40,10 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
     private boolean isPort = false;
     private boolean isHost = false;
     private boolean isConnect = false;
+    private boolean isMessage = false;
+
     private String host;
     private int port;
-
 
     public ConsoleHandler(Node node) {
         this.node = node;
@@ -60,9 +61,11 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
                 System.out.print("  host: > ");
             } else if ((isStartServerCommand || isConnect) && !isPort)
                 System.out.print("  port > ");
-            else
+            else if (isMessage) {
+                System.out.print("  enter your message > ");
+            } else {
                 System.out.print("cmd > ");
-
+            }
 
             try {
                 commandline = reader.readLine();
@@ -120,19 +123,39 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
             return;
         }
 
+        if (isMessage) {
+            Message message = new Message(node.getMyAddress().toString(), commandline);
+
+            if (node.getChatConnection() == null) {
+                Address address = node.convertToAddress();
+                Connection connection = new Connection(this.node, address, "chat");
+                connection.run();
+                node.setChatConnection(connection);
+            }
+
+            node.getChatConnection().sendMessage(message.toStringM().toUpperCase());
+            isMessage = false;
+        }
+
         switch (commandline) {
             case "?" -> log.info("Possible commands:\n{}", getHelpMessage());
             case "info" -> {
                 log.info("MY NODE {}", node);
             }
             case "start server" -> isStartServerCommand = true;
-//            case "stop server" -> node.stopServer();
             case "connect" -> {
                 // check if node has 2 active connection
                 if (node.getNeighbourLeft() != null && node.getNeighbourRight() != null) {
                     log.error("Node already has 2 connection. Max 2 connection for 1 node.");
                 } else
                     isConnect = true;
+            }
+            case "message" -> {
+                if (node.getWinP() == null) {
+                    log.error("Chat server not found.");
+                } else {
+                    isMessage = true;
+                }
             }
             default -> log.info("Unknown command.\n For more information input '?'");
         }
@@ -154,7 +177,7 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
         builder.append("info        - info about my node").append('\n')
                 .append("connect     - connect with other node").append('\n')
                 .append("start server").append('\n')
-                .append("stop server ").append('\n');
+                .append("message     - send message to server").append('\n');
 
         return builder.toString();
     }
@@ -171,7 +194,7 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
         }
 
         Address address = new Address(host, port);
-        Connection connection = new Connection(node, address);
+        Connection connection = new Connection(node, address, "");
         connection.run();
 
 
@@ -184,24 +207,26 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
         // make ring topology
         //  get right neighbour
         Message messageGetRightNeighbour = new Message(GET_RIGHT_NEIGHBOUR, "");
-        connection.sendMessage(messageGetRightNeighbour.getMessage());
+        connection.sendMessage(messageGetRightNeighbour.toStringM());
 
-        log.info("send message {}", messageGetRightNeighbour.getMessage());
+        log.info("send message {}", messageGetRightNeighbour.toStringM());
 
         // connect with right neighbour for ring topology
         Message messageMyAddress = new Message(NEW_RIGHT_NEIGHBOUR, node.getMyAddress());
-        connection.sendMessage(messageMyAddress.getMessage());
+        connection.sendMessage(messageMyAddress.toStringM());
 
-        log.info("send message {}", messageMyAddress.getMessage());
+        log.info("send message {}", messageMyAddress.toStringM());
 
         // send repair message
         Message message = new Message(REPAIR, node.getMyAddress());
-        node.getNeighbourLeft().sendMessage(message.getMessage());
+        node.getNeighbourLeft().sendMessage(message.toStringM());
 
-        log.info("send message {}", message.getMessage());
+        log.info("send message {}", message.toStringM());
         node.repairInit();
 
         log.info("Start 0 round.");
+
+        node.setChatConnection(null);
     }
 
     @Override
@@ -221,15 +246,15 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
                 Address address = parseAddress(message.getBody());
                 if (address != null) {
 
-                    Connection newConnection = new Connection(node, address);
+                    Connection newConnection = new Connection(node, address, "");
                     newConnection.run();
 
                     node.setNeighbourRight(newConnection);
 
                     Message messageNewRightN = new Message(NEW_LEFT_NEIGHBOUR, node.getMyAddress());
-                    newConnection.sendMessage(messageNewRightN.getMessage());
+                    newConnection.sendMessage(messageNewRightN.toStringM());
 
-                    log.info("send message {}", messageNewRightN.getMessage());
+                    log.info("send message {}", messageNewRightN.toStringM());
                 }
             }
 
@@ -238,7 +263,7 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
                     return;
 
                 Address newAddress = parseAddress(message.getBody());
-                node.setNeighbourLeft(new Connection(node, newAddress, session));
+                node.setNeighbourLeft(new Connection(node, newAddress, session, ""));
             }
 
             case REPAIR -> repairMessageHandler(message);
@@ -268,14 +293,14 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
                 Message messageWithNeighbour = new Message(MY_RIGHT_NEIGHBOUR, address);
                 sendMessage(session, messageWithNeighbour);
 
-                log.info("send message {}", messageWithNeighbour.getMessage());
+                log.info("send message {}", messageWithNeighbour.toStringM());
             }
 
             case NEW_RIGHT_NEIGHBOUR -> {
                 Address newAddress = parseAddress(message.getBody());
 
                 if (!newAddress.equals(node.getMyAddress())) {
-                    Connection newConnection = new Connection(node, newAddress, session);
+                    Connection newConnection = new Connection(node, newAddress, session, "");
 
                     if (node.getNeighbourLeft() == null) {
                         node.setNeighbourLeft(newConnection);
@@ -286,7 +311,7 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
             }
             case NEW_LEFT_NEIGHBOUR -> {
                 Address newAddress = parseAddress(message.getBody());
-                Connection newConnection = new Connection(node, newAddress, session);
+                Connection newConnection = new Connection(node, newAddress, session, "");
                 node.setNeighbourLeft(newConnection);
 
                 if (node.getNeighbourRight() == null)
@@ -306,31 +331,31 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
         Address address = parseAddress(message.getBody());
 
         if (node.getNeighbourLeft() == null) {
-            Connection connection = new Connection(node, address);
+            Connection connection = new Connection(node, address, "");
             connection.run();
             node.setNeighbourLeft(connection);
 
             Message messageRN = new Message(NEW_RIGHT_NEIGHBOUR, node.getMyAddress());
-            connection.sendMessage(messageRN.getMessage());
+            connection.sendMessage(messageRN.toStringM());
 
-            log.info("send message {}", messageRN.getMessage());
+            log.info("send message {}", messageRN.toStringM());
         }
 
         if (!address.getHost().equals(node.getMyAddress().getHost()) &&
                 !node.isStartRepair()) {
             Message messageRepair = new Message(REPAIR, address);
-            node.getNeighbourLeft().sendMessage(messageRepair.getMessage());
+            node.getNeighbourLeft().sendMessage(messageRepair.toStringM());
 
-            log.info("send message {}", messageRepair.getMessage());
+            log.info("send message {}", messageRepair.toStringM());
             node.repairInit();
             node.setStateNode(StateNode.ACTIVE);
         } else {
             // start sending CIP after topology restoration
             if (node.isStartRepair()) {
                 Message startAlgMessage = new Message(CIP, node.getId(), node.getId());
-                node.getNeighbourRight().sendMessage(startAlgMessage.getMessage());
+                node.getNeighbourRight().sendMessage(startAlgMessage.toStringM());
 
-                log.info("send message {}", startAlgMessage.getMessage());
+                log.info("send message {}", startAlgMessage.toStringM());
                 node.repairInit();
                 node.setStateNode(StateNode.ACTIVE);
             }
@@ -374,32 +399,23 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
 
         if (node.getStateNode() == StateNode.PASSIVE) {
             // I'm passive pass data to right neighbour
-            node.getNeighbourRight().sendMessage(message.getMessage());
+            node.getNeighbourRight().sendMessage(message.toStringM());
         } else {
-            // winner?
-//            if (cipM == node.getCiP() || cipM == node.getId()) {
-//                // send a message to the right one that I won
-//                Message messagewin = new Message(WIN, node.getId());
-//                node.getNeighbourRight().sendMessage(messagewin.getMessage());
-//
-//                log.info("passive. send message {}", messagewin.getMessage());
-//                return;
-//            }
 
             // pass data next
             if (startId != node.getId()) {
                 Message messagecip = new Message(CIP, startId, node.getCiP());
-                node.getNeighbourRight().sendMessage(messagecip.getMessage());
+                node.getNeighbourRight().sendMessage(messagecip.toStringM());
 
-                log.info("send message {}", messagecip.getMessage());
+                log.info("send message {}", messagecip.toStringM());
             } else {
 
                 log.info("cancel send CIP. Start send ACNP");
 
                 Message acnpMessage = new Message(ACNP, node.getId(), node.getAcnP());
-                node.getNeighbourRight().sendMessage(acnpMessage.getMessage());
+                node.getNeighbourRight().sendMessage(acnpMessage.toStringM());
 
-                log.info("send message {}", acnpMessage.getMessage());
+                log.info("send message {}", acnpMessage.toStringM());
             }
         }
 
@@ -422,9 +438,9 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
         // send right neighbour to right
         if (node.getStateNode() == StateNode.PASSIVE) {
             // pass to right
-            node.getNeighbourRight().sendMessage(message.getMessage());
+            node.getNeighbourRight().sendMessage(message.toStringM());
 
-            log.info("State is passive. Send message {} to next.", message.getMessage());
+            log.info("State is passive. Send message {} to next.", message.toStringM());
         } else {
             long myAcnp = node.getAcnP();
 
@@ -433,7 +449,7 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
 
                 node.setStateNode(LEADER);
                 Message winnerMessage = new Message(WINNER, node.getId());
-                node.getNeighbourRight().sendMessage(winnerMessage.getMessage());
+                node.getNeighbourRight().sendMessage(winnerMessage.toStringM());
                 node.setStartAlgorithm(false);
 
                 return;
@@ -445,15 +461,15 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
 
             if (id != startId) {
                 Message acnpMessage = new Message(ACNP, startId, node.getAcnP());
-                node.getNeighbourRight().sendMessage(acnpMessage.getMessage());
+                node.getNeighbourRight().sendMessage(acnpMessage.toStringM());
 
-                log.info("send next {}", acnpMessage.getMessage());
+                log.info("send next {}", acnpMessage.toStringM());
             } else {
                 log.info("cancel send ACNP. Init new round.");
 
                 Message messageNewRound = new Message(NEW_ROUND_INIT, node.getId());
-                node.getNeighbourRight().sendMessage(messageNewRound.getMessage());
-                log.info("send message {}", messageNewRound.getMessage());
+                node.getNeighbourRight().sendMessage(messageNewRound.toStringM());
+                log.info("send message {}", messageNewRound.toStringM());
             }
         }
 
@@ -487,17 +503,16 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
 
             long winId = node.getId();
 
-
             if (node.getAcnP() < cip) {
                 node.setStateNode(LEADER);
                 node.setWinP(winId);
 
                 // notify
                 Message winnerMessage = new Message(WINNER, winId);
-                node.getNeighbourRight().sendMessage(winnerMessage.getMessage());
+                node.getNeighbourRight().sendMessage(winnerMessage.toStringM());
                 node.setStartAlgorithm(false);
 
-                log.info("send message {}", winnerMessage.getMessage());
+                log.info("send message {}", winnerMessage.toStringM());
             } else {
                 node.setStateNode(StateNode.PASSIVE);
             }
@@ -506,9 +521,9 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
             // pass info next
 
             Message winMessage = new Message(WIN, wincip);
-            node.getNeighbourRight().sendMessage(winMessage.getMessage());
+            node.getNeighbourRight().sendMessage(winMessage.toStringM());
 
-            log.info("send message {}", winMessage.getMessage());
+            log.info("send message {}", winMessage.toStringM());
         }
 
         System.out.println(node);
@@ -521,9 +536,9 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
 
         if (id != winnerId) {
             Message winnerMessage = new Message(WINNER, winnerId);
-            node.getNeighbourRight().sendMessage(winnerMessage.getMessage());
+            node.getNeighbourRight().sendMessage(winnerMessage.toStringM());
 
-            log.info("send message {}", winnerMessage.getMessage());
+            log.info("send message {}", winnerMessage.toStringM());
         }
     }
 
@@ -536,9 +551,9 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
         node.setAcnP(null);
 
         if (startId != myId) {
-            node.getNeighbourRight().sendMessage(message.getMessage());
+            node.getNeighbourRight().sendMessage(message.toStringM());
 
-            log.info("send message {}", message.getMessage());
+            log.info("send message {}", message.toStringM());
         } else {
             log.info("Cancel init new round. Start new round.");
 
@@ -549,8 +564,8 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
             } else {
                 startRoundMessage = new Message(START_ROUND, node.getId());
             }
-            node.getNeighbourRight().sendMessage(startRoundMessage.getMessage());
-            log.info("send message {}", startRoundMessage.getMessage());
+            node.getNeighbourRight().sendMessage(startRoundMessage.toStringM());
+            log.info("send message {}", startRoundMessage.toStringM());
         }
 
         System.out.println(node);
@@ -567,15 +582,15 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
             } else {
                 startRoundMessage = new Message(START_ROUND, startId);
             }
-            node.getNeighbourRight().sendMessage(startRoundMessage.getMessage());
+            node.getNeighbourRight().sendMessage(startRoundMessage.toStringM());
 
-            log.info("send message {}", startRoundMessage.getMessage());
+            log.info("send message {}", startRoundMessage.toStringM());
         }
     }
 
     private void sendMessage(Session session, Message message) {
         try {
-            session.getBasicRemote().sendText(message.getMessage());
+            session.getBasicRemote().sendText(message.toStringM());
         } catch (IOException e) {
             log.error("failed send send message: {} in session: {}.\n Message: {}",
                     message, session.getId(), e.getMessage());

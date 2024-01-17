@@ -46,7 +46,7 @@ public class Message {
     }
 
 
-    public String getMessage() {
+    public String toStringM() {
         return title + DELIMITER_TITLE_BODY + body;
     }
 

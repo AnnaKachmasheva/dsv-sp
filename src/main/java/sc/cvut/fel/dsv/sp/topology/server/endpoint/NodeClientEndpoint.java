@@ -36,5 +36,4 @@ public class NodeClientEndpoint {
         // Do error handling here
     }
 
-
 }

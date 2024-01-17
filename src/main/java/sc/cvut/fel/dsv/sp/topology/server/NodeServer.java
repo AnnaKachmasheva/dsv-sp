@@ -6,6 +6,7 @@ import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.websocket.javax.server.config.JavaxWebSocketServletContainerInitializer;
+import sc.cvut.fel.dsv.sp.chat.endpoint.ChatServerEndpoint;
 import sc.cvut.fel.dsv.sp.topology.model.Address;
 import sc.cvut.fel.dsv.sp.topology.server.endpoint.NodeServerEndpoint;
 
@@ -48,6 +49,8 @@ public class NodeServer {
 
             // Add WebSocket endpoint to javax.websocket layer
             wsContainer.addEndpoint(NodeServerEndpoint.class);
+            wsContainer.addEndpoint(ChatServerEndpoint.class);
+
         });
 
     }

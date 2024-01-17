@@ -3,6 +3,7 @@ package sc.cvut.fel.dsv.sp.topology.server;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import sc.cvut.fel.dsv.sp.chat.endpoint.ChatClientEndpoint;
 import sc.cvut.fel.dsv.sp.topology.Node;
 import sc.cvut.fel.dsv.sp.topology.model.Address;
 import sc.cvut.fel.dsv.sp.topology.server.endpoint.NodeClientEndpoint;
@@ -13,6 +14,7 @@ import javax.websocket.Session;
 import javax.websocket.WebSocketContainer;
 import java.io.IOException;
 import java.net.URI;
+import java.util.Objects;
 
 @Slf4j
 @Getter
@@ -22,36 +24,47 @@ public class Connection {
     private Node node;
     private Address address;
     private Session session;
+    private String pathURI;
 
-    public Connection(Node node, Address address) {
+    public Connection(Node node, Address address, String pathURI) {
         this.node = node;
         this.address = address;
+        this.pathURI = pathURI;
     }
 
-    public Connection(Node node, Address address, Session session) {
+    public Connection(Node node, Address address, Session session, String pathURI) {
         this.node = node;
         this.address = address;
         this.session = session;
+        this.pathURI = pathURI;
     }
 
     public void run() {
-        URI uri = getURI();
         WebSocketContainer container = ContainerProvider.getWebSocketContainer();
 
-        try {
-            log.info("start connection. URI: {}", uri);
-            // Create client side endpoint
-            NodeClientEndpoint nodeClientEndpoint = new NodeClientEndpoint();
+        URI uri = getURI(pathURI);
 
-            // Attempt Connect
-            container.setDefaultMaxSessionIdleTimeout(Integer.MAX_VALUE);
-            session = container.connectToServer(nodeClientEndpoint, uri);
+        try {
+            log.info("Start connection. URI: {}", uri);
+            // Create client-side endpoint
+
+            if (pathURI.equals("")) {
+                NodeClientEndpoint nodeClientEndpoint = new NodeClientEndpoint();
+                // Attempt Connect
+                container.setDefaultMaxSessionIdleTimeout(Integer.MAX_VALUE);
+                session = container.connectToServer(nodeClientEndpoint, uri);
+            } else if (pathURI.equals("chat")) {
+                ChatClientEndpoint chatClientEndpoint = new ChatClientEndpoint();
+                container.setDefaultMaxSessionIdleTimeout(Integer.MAX_VALUE);
+                session = container.connectToServer(chatClientEndpoint, uri);
+            }
+
             session.setMaxIdleTimeout(30000);
 
-            log.info("success start connection. session: {}", session.getId());
+            log.info("Success start connection. Session: {}", session.getId());
 
         } catch (DeploymentException | IOException e) {
-            log.error("Failed start connection to host: {}  and port: {}.\n Message: {}",
+            log.error("Failed start connection to host: {} and port: {}.\n Message: {}",
                     address.getHost(), address, e.getMessage());
 
             this.session = null;
@@ -85,14 +98,15 @@ public class Connection {
     }
 
 
-    public URI getURI() {
+    public URI getURI(String path) {
         StringBuilder builder = new StringBuilder();
 
         builder.append("ws://")
                 .append(address.getHost())
                 .append(":")
                 .append(address.getPort())
-                .append("/server");
+                .append("/server")
+                .append(Objects.equals(path, "") ? path : '/' + path);
 
         String uriStr = builder.toString();
 

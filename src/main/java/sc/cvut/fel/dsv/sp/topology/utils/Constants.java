@@ -14,6 +14,7 @@ public class Constants {
             ACNP = "ACNP",
             WIN = "WIN",
             WINNER = "WINNER",
-            PING = "ping";
+            PING = "ping",
+            MESSAGE = "MESSAGE";
 
 }

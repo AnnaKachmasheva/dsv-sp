@@ -14,19 +14,20 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import static sc.cvut.fel.dsv.sp.topology.utils.Constants.*;
+import static sc.cvut.fel.dsv.sp.topology.utils.Constants.PING;
+import static sc.cvut.fel.dsv.sp.topology.utils.Constants.REPAIR;
 
 @Slf4j
 @Getter
 @Setter
 public class Node implements Runnable {
 
-    Long id;    // unique identification
-    Long winP;  // unique win_id in this ring
-    Long acnP;  // current id of neighbour
-    Long ciP;  // current id of neighbour
+    private Long id;    // unique identification
+    private Long winP;  // unique win_id in this ring
+    private Long acnP;  // current id of neighbour
+    private Long ciP;   // current id of neighbour
 
-    Address myAddress;
+    private Address myAddress;
 
     private StateNode stateNode;
 
@@ -35,24 +36,62 @@ public class Node implements Runnable {
 
     private Connection neighbourLeft; // <-
     private Connection neighbourRight; // ->
+    private Connection chatConnection;
 
     private boolean running = true; // if node is running
 
     private boolean startRepair = false;
     private boolean startAlgorithm = false;
 
+    // for chat
+    private boolean runningChat = false; // is chat running
+
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(1);
 
     public void init() {
-        stateNode = StateNode.ACTIVE;                       // because initiator
+        stateNode = StateNode.ACTIVE;
         consoleHandler = new ConsoleHandler(this);
     }
 
     private Long generateId() {
-        String host = server.getAddress().getHost().replaceAll("\\.", "");
+        String host = server.getAddress().getHost();
         int port = server.getAddress().getPort();
-        String str = host + port;
+
+        // Split the host into octets
+        String[] octets = host.split("\\.");
+        StringBuilder hostBuilder = new StringBuilder();
+
+        // Ensure each octet has three digits with leading zeros
+        for (String octet : octets) {
+            hostBuilder.append(String.format("%03d", Integer.parseInt(octet)));
+        }
+
+        String str = hostBuilder.toString() + port;
         return Long.parseLong(str);
+    }
+
+    public Address convertToAddress() {
+        if (winP == null)
+            return null;
+
+        String address = winP.toString();
+
+        // Extract host and port from the input string
+        String hostPart = address.substring(0, 12);
+        String portPart = address.substring(12);
+
+        // Remove leading zeros from each octet in the host part
+        String[] octets = hostPart.split("(?<=\\G...)");
+        StringBuilder hostBuilder = new StringBuilder();
+        for (String octet : octets) {
+            hostBuilder.append(Integer.parseInt(octet)).append(".");
+        }
+        String host = hostBuilder.deleteCharAt(hostBuilder.length() - 1).toString();
+
+        // Convert port part to an integer
+        int port = Integer.parseInt(portPart);
+
+        return new Address(host, port);
     }
 
     public void run() {
@@ -62,6 +101,7 @@ public class Node implements Runnable {
             // connections ping
             ping(neighbourLeft);
             ping(neighbourRight);
+            ping(chatConnection);
 
             // check sessions
             if (neighbourLeft != null && neighbourLeft.getSession() == null) {
@@ -74,7 +114,7 @@ public class Node implements Runnable {
             // check if topology need repair
             if (neighbourRight == null && neighbourLeft != null && !startRepair) {
                 Message message = new Message(REPAIR, myAddress);
-                neighbourLeft.sendMessage(message.getMessage());
+                neighbourLeft.sendMessage(message.toStringM());
                 repairInit();
             }
 
@@ -83,10 +123,6 @@ public class Node implements Runnable {
                 setStateNode(StateNode.LOST);
             }
 
-
-            if (startRepair) {
-                this.startAlgorithm = false;
-            }
         }, 0, 1, TimeUnit.SECONDS);
 
         new Thread(consoleHandler).run();
@@ -97,7 +133,6 @@ public class Node implements Runnable {
         server = new NodeServer(myAddress);
         server.run();
 
-        // begin if P is initiator then statP := active else stateP := passive;
         if (isStateActive()) {
             id = generateId();
             ciP = id;
@@ -115,7 +150,8 @@ public class Node implements Runnable {
     public void repairInit() {
         this.winP = null;
         this.acnP = null;
-        this.startRepair =  true;
+        this.startRepair = true;
+        this.chatConnection = null;
     }
 
     private boolean isStateActive() {
@@ -135,6 +171,7 @@ public class Node implements Runnable {
                 "   server = " + server + '\n' +
                 "   neighbourLeft = " + neighbourLeft + '\n' +
                 "   neighbourRight = " + neighbourRight + '\n' +
+                "   chat = " + chatConnection + '\n' +
                 "   running = " + running + '\n' +
                 "   startRepair = " + startRepair + '\n' +
                 "   startAlgorithm = " + startAlgorithm + '\n' +

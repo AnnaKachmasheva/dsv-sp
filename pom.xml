@@ -60,7 +60,6 @@
             <version>1.2.1</version>
         </dependency>
 
-        <!--   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  -->
         <!-- To write basic javax.websocket against -->
         <dependency>
             <groupId>jakarta.websocket</groupId>
@@ -81,15 +80,6 @@
             <artifactId>websocket-javax-client</artifactId>
             <version>10.0.18</version>
         </dependency>
-
-        <!-- for ping  -->
-        <dependency>
-            <groupId>org.jresearch.gwtproject.timer</groupId>
-            <artifactId>gwt-timer</artifactId>
-            <version>1.3</version>
-        </dependency>
-
-
 
         <dependency>
             <groupId>junit</groupId>
