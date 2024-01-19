@@ -608,11 +608,13 @@ public class ConsoleHandler implements Runnable, WebSocketEventListener {
                 node.setNeighbourLeft(null);
 
                 log.info("Lost neighbour left");
+                node.setStateNode(StateNode.LOST);
             }
             if (node.getNeighbourRight().getSession().getId().equals(idCloseSession)) {
                 node.setNeighbourRight(null);
 
                 log.info("Lost neighbour right");
+                node.setStateNode(StateNode.LOST);
             }
         } else {
             if (idCloseSession.equals(node.getNeighbourRight().getSession().getId())) {
